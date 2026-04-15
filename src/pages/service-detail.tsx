@@ -303,16 +303,18 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
       accessorKey: "market.title",
       header: "Market",
       cell: ({ row }) => (
-        <a
-          href={row.original.market.external_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-primary line-clamp-2 text-sm"
-        >
-          {row.original.market.title}
-        </a>
+        <div className="max-w-[300px]">
+          <a
+            href={row.original.market.external_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary text-sm line-clamp-1"
+            title={row.original.market.title}
+          >
+            {row.original.market.title}
+          </a>
+        </div>
       ),
-      size: 300,
     },
     {
       accessorKey: "prediction_side",
