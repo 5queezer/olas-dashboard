@@ -7,7 +7,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci && \
     if [ "$(uname -m)" = "aarch64" ]; then \
-      npm install @rolldown/binding-linux-arm64-musl; \
+      npm install \
+        @rolldown/binding-linux-arm64-musl \
+        lightningcss-linux-arm64-musl \
+        @tailwindcss/oxide-linux-arm64-musl; \
     fi
 
 COPY . .
