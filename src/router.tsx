@@ -14,7 +14,11 @@ import { SettingsPage } from "@/pages/settings";
 import { useAuth } from "@/hooks/use-auth";
 
 function AuthLayout() {
-  const { authenticated } = useAuth();
+  const { authenticated, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
 
   if (!authenticated) {
     return <Navigate to="/login" />;

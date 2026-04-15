@@ -1,8 +1,9 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { api } from "@/api/client";
 
-const AUTH_KEY = "olas_authenticated";
+type AuthState = { authenticated: boolean; loading: boolean };
 
-let isAuthenticated = sessionStorage.getItem(AUTH_KEY) === "1";
+let state: AuthState = { authenticated: false, loading: true };
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -11,24 +12,32 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot() {
-  return isAuthenticated;
+  return state;
 }
 
-function setAuth(value: boolean) {
-  isAuthenticated = value;
-  if (value) {
-    sessionStorage.setItem(AUTH_KEY, "1");
-  } else {
-    sessionStorage.removeItem(AUTH_KEY);
-  }
+function setState(next: AuthState) {
+  state = next;
   listeners.forEach((l) => l());
 }
 
+// Check API reachability once on startup
+let checked = false;
+function checkApi() {
+  if (checked) return;
+  checked = true;
+  api
+    .get("/api/account")
+    .then(() => setState({ authenticated: true, loading: false }))
+    .catch(() => setState({ authenticated: false, loading: false }));
+}
+
 export function useAuth() {
-  const authenticated = useSyncExternalStore(subscribe, getSnapshot);
+  const { authenticated, loading } = useSyncExternalStore(subscribe, getSnapshot);
 
-  const login = useCallback(() => setAuth(true), []);
-  const logout = useCallback(() => setAuth(false), []);
+  useEffect(() => { checkApi(); }, []);
 
-  return { authenticated, login, logout };
+  const login = useCallback(() => setState({ authenticated: true, loading: false }), []);
+  const logout = useCallback(() => setState({ authenticated: false, loading: false }), []);
+
+  return { authenticated, loading, login, logout };
 }
