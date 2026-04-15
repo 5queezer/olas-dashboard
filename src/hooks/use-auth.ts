@@ -1,6 +1,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-let isAuthenticated = false;
+const AUTH_KEY = "olas_authenticated";
+
+let isAuthenticated = sessionStorage.getItem(AUTH_KEY) === "1";
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -14,6 +16,11 @@ function getSnapshot() {
 
 function setAuth(value: boolean) {
   isAuthenticated = value;
+  if (value) {
+    sessionStorage.setItem(AUTH_KEY, "1");
+  } else {
+    sessionStorage.removeItem(AUTH_KEY);
+  }
   listeners.forEach((l) => l());
 }
 
