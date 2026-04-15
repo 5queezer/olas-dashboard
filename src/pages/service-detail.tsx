@@ -1,5 +1,14 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  flexRender,
+  type ColumnDef,
+} from "@tanstack/react-table";
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -23,7 +32,7 @@ import {
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
-import type { ProfitDataPoint } from "@/api/types";
+import type { ProfitDataPoint, PredictionItem } from "@/api/types";
 import { StatusBadge } from "@/components/status-badge";
 import { ProfitDisplay } from "@/components/profit-display";
 import { StatCard } from "@/components/stat-card";
@@ -272,6 +281,15 @@ function ProfitChart({ data }: { data: ProfitDataPoint[] }) {
   );
 }
 
+function parseDeadlineMs(title: string): number | null {
+  const match = title.match(/(?:on or )?before\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+  if (!match) return null;
+  const d = new Date(match[1]);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
 function TradesPanel({ serviceId }: { serviceId: string }) {
   const { data: performance } = useQuery({
     ...queries.agentPerformance(serviceId),
@@ -279,6 +297,90 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
   });
 
   const trades = performance?.prediction_history?.items;
+
+  const columns: ColumnDef<PredictionItem>[] = useMemo(() => [
+    {
+      accessorKey: "market.title",
+      header: "Market",
+      cell: ({ row }) => (
+        <a
+          href={row.original.market.external_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-primary line-clamp-2 text-sm"
+        >
+          {row.original.market.title}
+        </a>
+      ),
+      size: 300,
+    },
+    {
+      accessorKey: "prediction_side",
+      header: "Side",
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={
+            row.original.prediction_side === "yes"
+              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              : "bg-red-500/10 text-red-400 border-red-500/20"
+          }
+        >
+          {row.original.prediction_side.toUpperCase()}
+        </Badge>
+      ),
+      size: 70,
+    },
+    {
+      accessorKey: "bet_amount",
+      header: "Amount",
+      cell: ({ row }) => (
+        <span className="font-mono text-sm">{row.original.bet_amount.toFixed(3)}</span>
+      ),
+      size: 80,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <TradeStatusBadge status={row.original.status} />,
+      size: 80,
+    },
+    {
+      id: "remaining",
+      header: "Remaining",
+      accessorFn: (row) => {
+        if (row.status.toLowerCase() !== "pending") return -1;
+        const dl = parseDeadlineMs(row.market.title);
+        return dl ? dl - Date.now() : Infinity;
+      },
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">
+          <TimeRemaining title={row.original.market.title} status={row.original.status} />
+        </span>
+      ),
+      size: 90,
+    },
+    {
+      accessorKey: "net_profit",
+      header: "Profit",
+      cell: ({ row }) => (
+        <ProfitDisplay value={row.original.net_profit} decimals={3} className="text-sm" />
+      ),
+      size: 80,
+    },
+  ], []);
+
+  const table = useReactTable({
+    data: trades ?? [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: { pageSize: 10 },
+      sorting: [{ id: "remaining", desc: false }],
+    },
+  });
 
   if (!trades || trades.length === 0) {
     return (
@@ -290,9 +392,7 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="py-8 text-center text-muted-foreground">
-            No trades recorded yet
-          </p>
+          <p className="py-8 text-center text-muted-foreground">No trades recorded yet</p>
         </CardContent>
       </Card>
     );
@@ -309,65 +409,73 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
           {performance?.prediction_history?.total_predictions ?? trades.length} predictions total
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Market</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Remaining</TableHead>
-                <TableHead className="text-right">Profit</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={`cursor-pointer select-none hover:text-foreground ${
+                        ["bet_amount", "net_profit"].includes(header.id) ? "text-right" : ""
+                      }`}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{ asc: " \u2191", desc: " \u2193" }[header.column.getIsSorted() as string] ?? ""}
+                      </span>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {trades.map((trade) => (
-                <TableRow key={trade.id}>
-                  <TableCell className="max-w-[250px] text-sm">
-                    <a
-                      href={trade.market.external_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-primary line-clamp-2"
-                    >
-                      {trade.market.title}
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
                       className={
-                        trade.prediction_side === "yes"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border-red-500/20"
+                        ["bet_amount", "net_profit"].includes(cell.column.id) ? "text-right" : ""
                       }
                     >
-                      {trade.prediction_side.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {trade.bet_amount.toFixed(3)}
-                  </TableCell>
-                  <TableCell>
-                    <TradeStatusBadge status={trade.status} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    <TimeRemaining title={trade.market.title} status={trade.status} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <ProfitDisplay
-                      value={trade.net_profit}
-                      decimals={3}
-                      className="text-sm"
-                    />
-                  </TableCell>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+
+        {table.getPageCount() > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-sm text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
