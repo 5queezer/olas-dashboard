@@ -10,6 +10,7 @@ import { LoginPage } from "@/pages/login";
 import { DashboardPage } from "@/pages/dashboard";
 import { ServiceDetailPage } from "@/pages/service-detail";
 import { WalletPage } from "@/pages/wallet";
+import { SettingsPage } from "@/pages/settings";
 import { useAuth } from "@/hooks/use-auth";
 
 function AuthLayout() {
@@ -63,9 +64,15 @@ const walletRoute = createRoute({
   component: WalletPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => authenticatedLayout,
+  path: "/service/$id/settings",
+  component: SettingsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  authenticatedLayout.addChildren([dashboardRoute, serviceRoute, walletRoute]),
+  authenticatedLayout.addChildren([dashboardRoute, serviceRoute, settingsRoute, walletRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

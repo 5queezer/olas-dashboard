@@ -11,6 +11,7 @@ import {
   Target,
   Coins,
   Activity,
+  Settings,
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
@@ -524,6 +525,12 @@ export function ServiceDetailPage() {
             {service.service_config_id}
           </p>
         </div>
+        <Link to="/service/$id/settings" params={{ id }}>
+          <Button variant="outline" size="sm">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
+        </Link>
         <ServiceControls serviceId={id} />
       </div>
 
