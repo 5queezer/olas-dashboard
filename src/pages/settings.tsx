@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Save, Loader2, Info, RotateCcw } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Info, RotateCcw, Send, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,6 +124,11 @@ export function SettingsPage() {
         </Card>
       )}
 
+      <ChatInstructions serviceId={id} onSuccess={() => {
+        queryClient.invalidateQueries({ queryKey: ["agent-performance", id] });
+        queryClient.invalidateQueries({ queryKey: ["chatui-params", id] });
+      }} />
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Trading Strategy</CardTitle>
@@ -218,5 +223,84 @@ export function SettingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSuccess: () => void }) {
+  const [prompt, setPrompt] = useState("");
+  const [sending, setSending] = useState(false);
+  const [response, setResponse] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  async function handleSend(e: FormEvent) {
+    e.preventDefault();
+    if (!prompt.trim()) return;
+
+    setSending(true);
+    setChatError(null);
+    setResponse(null);
+
+    try {
+      const result = await api.post<Record<string, unknown>>(
+        `/api/v2/service/${serviceId}/chat`,
+        { prompt: prompt.trim() },
+      );
+
+      if (result.error) {
+        setChatError(String(result.error));
+      } else {
+        setResponse(
+          result.message
+            ? String(result.message)
+            : "Instructions sent successfully. The agent will update its behavior."
+        );
+        setPrompt("");
+        onSuccess();
+      }
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Failed to send");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          Change Agent Behavior
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Describe how the agent should trade in natural language. The agent uses AI to interpret
+          your instructions and update its trading strategy, bet sizes, and tool preferences.
+        </p>
+        <form onSubmit={handleSend} className="flex gap-2">
+          <Input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. Focus on crypto markets, max bet 0.5 xDAI, avoid sports"
+            disabled={sending}
+            className="bg-background flex-1"
+          />
+          <Button type="submit" disabled={sending || !prompt.trim()} size="sm">
+            {sending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </form>
+
+        {response && (
+          <p className="text-sm text-emerald-500">{response}</p>
+        )}
+        {chatError && (
+          <p className="text-sm text-destructive">{chatError}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
