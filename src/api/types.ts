@@ -69,53 +69,104 @@ export interface ServiceSummary {
   env_variables?: Record<string, { value: string; provision_type: string }>;
 }
 
-export interface DeploymentInfo {
-  status: DeploymentStatus;
-  nodes: Record<string, { agent: string[]; tendermint: string[] }>;
-  healthcheck?: HealthcheckData | null;
-}
-
 export interface HealthcheckData {
   seconds_since_last_transition?: number;
   is_transitioning_fast?: boolean;
-  current_round?: string;
+  is_tm_healthy?: boolean;
+  is_healthy?: boolean;
   period?: number;
-  round_sequence?: string[];
-  healthy_round_count?: number;
+  rounds?: string[];
+  reset_pause_duration?: number;
+  agent_health?: {
+    is_making_on_chain_transactions?: boolean;
+    is_mech_reliable?: boolean;
+    is_staking_kpi_met?: boolean;
+    has_required_funds?: boolean;
+    staking_status?: string;
+  };
 }
 
-export interface TradeEntry {
-  market: string;
-  title?: string;
-  side?: string;
-  amount?: number;
-  status?: string;
-  profit?: number;
-  creation_timestamp?: number;
-  outcome_timestamp?: number;
+export interface DeploymentInfo {
+  status: DeploymentStatus;
+  nodes: { agent: string[]; tendermint: string[] };
+  healthcheck?: HealthcheckData | null;
 }
 
-export interface AgentPerformance {
-  timestamp: number | null;
-  metrics: PerformanceMetric[];
-  last_activity: string | null;
-  last_chat_message: string | null;
-  profit_over_time?: ProfitEntry[];
-  trades?: TradeEntry[];
-  total_profit?: number;
-  accuracy?: number;
-  roi?: number;
+// Agent Performance API response
+export interface PredictionItem {
+  id: string;
+  market: {
+    id: string;
+    title: string;
+    external_url?: string;
+  };
+  prediction_side: string;
+  bet_amount: number;
+  status: string;
+  net_profit: number;
+  total_payout: number;
+  created_at: string;
+  settled_at: string | null;
+}
+
+export interface ProfitDataPoint {
+  date: string;
+  timestamp: number;
+  daily_profit: number;
+  cumulative_profit: number;
+  daily_mech_requests: number;
+  daily_profit_raw: number;
 }
 
 export interface PerformanceMetric {
   name: string;
   value: string | number;
-  unit?: string;
+  is_primary?: boolean;
+  description?: string;
 }
 
-export interface ProfitEntry {
-  timestamp: number;
-  profit: number;
+export interface AgentPerformance {
+  timestamp: number | null;
+  agent_behavior?: string;
+  agent_details?: {
+    id: string;
+    created_at: string;
+    last_active_at: string;
+  };
+  agent_performance?: {
+    window: string;
+    currency: string;
+    metrics: {
+      all_time_funds_used: number;
+      all_time_profit: number;
+      funds_locked_in_markets: number;
+      available_funds: number;
+      roi: number;
+      settled_mech_request_count: number;
+      total_mech_request_count: number;
+      open_mech_request_count: number;
+      placed_mech_request_count: number;
+      unplaced_mech_request_count: number;
+    };
+    stats: {
+      predictions_made: number;
+      prediction_accuracy: number;
+    };
+  };
+  metrics: PerformanceMetric[];
+  prediction_history?: {
+    total_predictions: number;
+    stored_count: number;
+    last_updated: number;
+    items: PredictionItem[];
+  };
+  profit_over_time?: {
+    last_updated: number;
+    total_days: number;
+    data_points: ProfitDataPoint[];
+  };
+  last_activity: string | null;
+  last_chat_message: string | null;
 }
 
 export interface FundingRequirement {

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
-import type { TradeEntry } from "@/api/types";
+import type { ProfitDataPoint } from "@/api/types";
 import { StatusBadge } from "@/components/status-badge";
 import { ProfitDisplay } from "@/components/profit-display";
 import { StatCard } from "@/components/stat-card";
@@ -70,9 +70,13 @@ function HealthPanel({
       <CardContent>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-sm text-muted-foreground">Current Round</p>
-            <p className="font-mono text-sm">
-              {hc?.current_round ?? "--"}
+            <p className="text-sm text-muted-foreground">Tendermint</p>
+            <p className="text-sm">
+              {hc?.is_tm_healthy === true ? (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Healthy</Badge>
+              ) : hc?.is_tm_healthy === false ? (
+                <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">Unhealthy</Badge>
+              ) : "--"}
             </p>
           </div>
           <div>
@@ -80,12 +84,10 @@ function HealthPanel({
             <p className="font-mono text-sm">{hc?.period ?? "--"}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">
-              Seconds Since Last Transition
-            </p>
+            <p className="text-sm text-muted-foreground">Last Transition</p>
             <p className="font-mono text-sm">
               {hc?.seconds_since_last_transition !== undefined
-                ? formatDuration(hc.seconds_since_last_transition)
+                ? `${formatDuration(hc.seconds_since_last_transition)} ago`
                 : "--"}
             </p>
           </div>
@@ -93,40 +95,38 @@ function HealthPanel({
             <p className="text-sm text-muted-foreground">Transitioning</p>
             <p className="text-sm">
               {hc?.is_transitioning_fast === true ? (
-                <Badge
-                  variant="outline"
-                  className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                >
-                  Fast
-                </Badge>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Fast</Badge>
               ) : hc?.is_transitioning_fast === false ? (
-                <Badge
-                  variant="outline"
-                  className="bg-red-500/10 text-red-400 border-red-500/20"
-                >
-                  Slow
-                </Badge>
-              ) : (
-                "--"
-              )}
+                <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">Slow</Badge>
+              ) : "--"}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Healthy Rounds</p>
-            <p className="font-mono text-sm">
-              {hc?.healthy_round_count ?? "--"}
-            </p>
-          </div>
+          {hc?.agent_health && (
+            <>
+              <div>
+                <p className="text-sm text-muted-foreground">Staking</p>
+                <p className="font-mono text-sm">{hc.agent_health.staking_status ?? "--"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Has Funds</p>
+                <p className="text-sm">
+                  {hc.agent_health.has_required_funds === true ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
+                  ) : hc.agent_health.has_required_funds === false ? (
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">No</Badge>
+                  ) : "--"}
+                </p>
+              </div>
+            </>
+          )}
         </div>
-        {hc?.round_sequence && hc.round_sequence.length > 0 && (
+        {hc?.rounds && hc.rounds.length > 0 && (
           <div className="mt-4">
-            <p className="mb-2 text-sm text-muted-foreground">
-              Round Sequence
-            </p>
+            <p className="mb-2 text-sm text-muted-foreground">Current Rounds</p>
             <div className="flex flex-wrap gap-1">
-              {hc.round_sequence.slice(-10).map((round, i) => (
+              {hc.rounds.slice(-8).map((round: string, i: number) => (
                 <Badge key={i} variant="secondary" className="text-xs font-mono">
-                  {round}
+                  {round.replace(/_round$/, "").replaceAll("_", " ")}
                 </Badge>
               ))}
             </div>
@@ -143,6 +143,9 @@ function PerformancePanel({ serviceId }: { serviceId: string }) {
     refetchInterval: 15_000,
   });
 
+  const ap = performance?.agent_performance;
+  const stats = ap?.stats;
+
   return (
     <Card className="border-border/50">
       <CardHeader>
@@ -156,85 +159,79 @@ function PerformancePanel({ serviceId }: { serviceId: string }) {
           <div>
             <p className="text-sm text-muted-foreground">Total Profit</p>
             <ProfitDisplay
-              value={performance?.total_profit}
-              suffix=" xDAI"
-              decimals={4}
+              value={ap?.metrics.all_time_profit}
+              suffix={` ${ap?.currency ?? "USD"}`}
+              decimals={2}
               className="text-lg font-semibold"
             />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">ROI</p>
+            <p className="text-sm text-muted-foreground">Funds Used</p>
             <p className="text-lg font-semibold">
-              {performance?.roi !== undefined && performance.roi !== null ? (
-                <ProfitDisplay
-                  value={performance.roi * 100}
-                  suffix="%"
-                  decimals={2}
-                />
-              ) : (
-                <span className="text-muted-foreground">--</span>
-              )}
+              {ap?.metrics.all_time_funds_used !== undefined
+                ? `${ap.metrics.all_time_funds_used.toFixed(2)} ${ap.currency}`
+                : "--"}
             </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Accuracy</p>
             <p className="text-lg font-semibold">
-              {performance?.accuracy !== undefined &&
-              performance.accuracy !== null
-                ? `${(performance.accuracy * 100).toFixed(1)}%`
+              {stats?.prediction_accuracy !== undefined
+                ? `${(stats.prediction_accuracy * 100).toFixed(0)}%`
                 : "--"}
+              {stats?.predictions_made !== undefined && (
+                <span className="ml-1 text-sm text-muted-foreground">
+                  ({stats.predictions_made} trades)
+                </span>
+              )}
             </p>
           </div>
         </div>
 
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2">
+            <span className="text-sm text-muted-foreground">Available Funds</span>
+            <span className="font-mono text-sm">{ap?.metrics.available_funds?.toFixed(2) ?? "--"} {ap?.currency ?? ""}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2">
+            <span className="text-sm text-muted-foreground">Locked in Markets</span>
+            <span className="font-mono text-sm">{ap?.metrics.funds_locked_in_markets?.toFixed(2) ?? "--"} {ap?.currency ?? ""}</span>
+          </div>
+        </div>
+
         {performance?.metrics && performance.metrics.length > 0 && (
-          <div className="mt-4">
-            <p className="mb-2 text-sm text-muted-foreground">Metrics</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {performance.metrics.map((m, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2"
-                >
-                  <span className="text-sm text-muted-foreground">
-                    {m.name}
-                  </span>
-                  <span className="font-mono text-sm">
-                    {m.value}
-                    {m.unit ? ` ${m.unit}` : ""}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {performance.metrics.map((m, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2"
+              >
+                <span className="text-sm text-muted-foreground">{m.name}</span>
+                <span className="font-mono text-sm">{m.value}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {performance?.profit_over_time &&
-          performance.profit_over_time.length > 0 && (
+        {performance?.profit_over_time?.data_points &&
+          performance.profit_over_time.data_points.length > 1 && (
             <div className="mt-4">
               <p className="mb-2 text-sm text-muted-foreground">
-                Profit Over Time
+                Cumulative Profit
               </p>
-              <ProfitChart data={performance.profit_over_time} />
+              <ProfitChart data={performance.profit_over_time.data_points} />
             </div>
           )}
-
-        {performance?.last_activity && (
-          <div className="mt-4">
-            <p className="text-sm text-muted-foreground">Last Activity</p>
-            <p className="text-sm">{performance.last_activity}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
 }
 
-function ProfitChart({ data }: { data: { timestamp: number; profit: number }[] }) {
+function ProfitChart({ data }: { data: ProfitDataPoint[] }) {
   if (data.length < 2) return null;
 
-  const maxProfit = Math.max(...data.map((d) => d.profit));
-  const minProfit = Math.min(...data.map((d) => d.profit));
+  const maxProfit = Math.max(...data.map((d) => d.cumulative_profit));
+  const minProfit = Math.min(...data.map((d) => d.cumulative_profit));
   const range = maxProfit - minProfit || 1;
   const h = 120;
   const w = 400;
@@ -242,34 +239,36 @@ function ProfitChart({ data }: { data: { timestamp: number; profit: number }[] }
 
   const points = data.map((d, i) => {
     const x = padding + (i / (data.length - 1)) * (w - 2 * padding);
-    const y = h - padding - ((d.profit - minProfit) / range) * (h - 2 * padding);
+    const y = h - padding - ((d.cumulative_profit - minProfit) / range) * (h - 2 * padding);
     return `${x},${y}`;
   });
 
   const zeroY = h - padding - ((0 - minProfit) / range) * (h - 2 * padding);
+  const isNegative = data[data.length - 1].cumulative_profit < 0;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-md" preserveAspectRatio="none">
-      {minProfit < 0 && maxProfit > 0 && (
-        <line
-          x1={padding}
-          y1={zeroY}
-          x2={w - padding}
-          y2={zeroY}
-          stroke="currentColor"
-          strokeOpacity={0.15}
-          strokeDasharray="4,4"
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-md" preserveAspectRatio="none">
+        {minProfit < 0 && maxProfit > 0 && (
+          <line
+            x1={padding} y1={zeroY} x2={w - padding} y2={zeroY}
+            stroke="currentColor" strokeOpacity={0.15} strokeDasharray="4,4"
+          />
+        )}
+        <polyline
+          fill="none"
+          stroke={isNegative ? "oklch(0.637 0.237 25.33)" : "oklch(0.696 0.17 162.48)"}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={points.join(" ")}
         />
-      )}
-      <polyline
-        fill="none"
-        stroke="oklch(0.696 0.17 162.48)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        points={points.join(" ")}
-      />
-    </svg>
+      </svg>
+      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+        <span>{data[0].date}</span>
+        <span>{data[data.length - 1].date}</span>
+      </div>
+    </div>
   );
 }
 
@@ -279,7 +278,7 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
     refetchInterval: 15_000,
   });
 
-  const trades = performance?.trades;
+  const trades = performance?.prediction_history?.items;
 
   if (!trades || trades.length === 0) {
     return (
@@ -306,7 +305,9 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
           <Coins className="h-4 w-4 text-primary" />
           Trades
         </CardTitle>
-        <CardDescription>{trades.length} trades total</CardDescription>
+        <CardDescription>
+          {performance?.prediction_history?.total_predictions ?? trades.length} predictions total
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -321,39 +322,40 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trades.map((trade: TradeEntry, i: number) => (
-                <TableRow key={i}>
-                  <TableCell className="max-w-[200px] truncate text-sm">
-                    {trade.title || trade.market || "Unknown"}
+              {trades.map((trade) => (
+                <TableRow key={trade.id}>
+                  <TableCell className="max-w-[250px] text-sm">
+                    <a
+                      href={trade.market.external_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary line-clamp-2"
+                    >
+                      {trade.market.title}
+                    </a>
                   </TableCell>
                   <TableCell>
-                    {trade.side ? (
-                      <Badge
-                        variant="outline"
-                        className={
-                          trade.side.toUpperCase() === "YES"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-red-500/10 text-red-400 border-red-500/20"
-                        }
-                      >
-                        {trade.side}
-                      </Badge>
-                    ) : (
-                      "--"
-                    )}
+                    <Badge
+                      variant="outline"
+                      className={
+                        trade.prediction_side === "yes"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border-red-500/20"
+                      }
+                    >
+                      {trade.prediction_side.toUpperCase()}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {trade.amount !== undefined
-                      ? trade.amount.toFixed(4)
-                      : "--"}
+                    {trade.bet_amount.toFixed(3)}
                   </TableCell>
                   <TableCell>
                     <TradeStatusBadge status={trade.status} />
                   </TableCell>
                   <TableCell className="text-right">
                     <ProfitDisplay
-                      value={trade.profit}
-                      decimals={4}
+                      value={trade.net_profit}
+                      decimals={3}
                       className="text-sm"
                     />
                   </TableCell>
@@ -562,9 +564,9 @@ export function ServiceDetailPage() {
           label="Total Profit"
           value={
             <ProfitDisplay
-              value={performance?.total_profit}
-              suffix=" xDAI"
-              decimals={4}
+              value={performance?.agent_performance?.metrics.all_time_profit}
+              suffix={` ${performance?.agent_performance?.currency ?? "USD"}`}
+              decimals={2}
             />
           }
           icon={<TrendingUp className="h-4 w-4" />}
@@ -572,9 +574,8 @@ export function ServiceDetailPage() {
         <StatCard
           label="Accuracy"
           value={
-            performance?.accuracy !== undefined &&
-            performance.accuracy !== null
-              ? `${(performance.accuracy * 100).toFixed(1)}%`
+            performance?.agent_performance?.stats.prediction_accuracy !== undefined
+              ? `${(performance.agent_performance.stats.prediction_accuracy * 100).toFixed(0)}%`
               : "--"
           }
           icon={<Target className="h-4 w-4" />}
