@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
 import {
   ArrowLeft,
   Clock,
@@ -77,7 +85,7 @@ function HealthPanel({
             </p>
             <p className="font-mono text-sm">
               {hc?.seconds_since_last_transition !== undefined
-                ? `${hc.seconds_since_last_transition}s`
+                ? formatDuration(hc.seconds_since_last_transition)
                 : "--"}
             </p>
           </div>
@@ -571,7 +579,7 @@ export function ServiceDetailPage() {
           label="Last Transition"
           value={
             deployment?.healthcheck?.seconds_since_last_transition !== undefined
-              ? `${deployment.healthcheck.seconds_since_last_transition}s ago`
+              ? `${formatDuration(deployment.healthcheck.seconds_since_last_transition)} ago`
               : "--"
           }
           icon={<Clock className="h-4 w-4" />}
