@@ -29,6 +29,8 @@ import {
   Coins,
   Activity,
   Settings,
+  Zap,
+  RefreshCw,
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
@@ -550,6 +552,89 @@ function TimeRemaining({ title, status }: { title: string; status: string }) {
   return <span className="text-yellow-400">{hours}h</span>;
 }
 
+const ROUND_DESCRIPTIONS: Record<string, string> = {
+  registration_startup_round: "Starting up",
+  registration_round: "Registering agent",
+  fetch_performance_data_round: "Fetching performance data",
+  update_achievements_round: "Updating achievements",
+  chatui_load_round: "Loading chat configuration",
+  mech_version_detection_round: "Detecting the priority mech's version",
+  mech_information_round: "Fetching mech information",
+  check_benchmarking_mode_round: "Checking benchmarking mode",
+  fetch_markets_router_round: "Routing to market fetching",
+  update_bets_round: "Updating trade list",
+  check_stop_trading_round: "Checking if trading should stop",
+  randomness_round: "Gathering randomness",
+  sampling_round: "Sampling a trade",
+  tool_selection_round: "Choosing prediction tool",
+  decision_request_round: "Requesting trade outcome",
+  decision_receive_round: "Making a prediction",
+  mech_request_round: "Requesting outcome data",
+  mech_response_round: "Receiving outcome data",
+  bet_placement_round: "Opening a trade",
+  redeem_round: "Preparing to redeem winnings",
+  redeem_router_round: "Deciding between redeem tools",
+  call_checkpoint_round: "Checking reward status",
+  reset_and_pause_round: "Taking a short break",
+  pre_tx_settlement_round: "Preparing settlement",
+  collect_signature_round: "Signing a transaction",
+  finalization_round: "Completing the action",
+  validate_transaction_round: "Validating a transaction",
+  post_tx_settlement_round: "Finalizing transaction settlement",
+  handle_failed_tx_round: "Handling a failed transaction",
+  sell_outcome_tokens_round: "Selling tokens of unresolved trades",
+  service_evicted_round: "Agent evicted from staking",
+};
+
+function getRoundDescription(round: string, roundsInfo?: Record<string, { name?: string; description?: string }>): string {
+  if (roundsInfo?.[round]?.description) return roundsInfo[round].description!;
+  if (ROUND_DESCRIPTIONS[round]) return ROUND_DESCRIPTIONS[round];
+  return round.replace(/_round$/, "").replaceAll("_", " ");
+}
+
+function CurrentAction({ serviceId }: { serviceId: string }) {
+  const { data: deployment } = useQuery({
+    ...queries.deployment(serviceId),
+    refetchInterval: 5_000,
+  });
+
+  const hc = deployment?.healthcheck;
+  const rounds = hc?.rounds as string[] | undefined;
+  const roundsInfo = (hc as Record<string, unknown>)?.rounds_info as Record<string, { name?: string; description?: string }> | undefined;
+  const currentRound = rounds?.[rounds.length - 1];
+  const isDeployed = deployment?.status === 3;
+
+  if (!isDeployed) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/30 px-4 py-2.5">
+        <Square className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Agent is not running</span>
+      </div>
+    );
+  }
+
+  if (!currentRound) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/30 px-4 py-2.5">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Starting up...</span>
+      </div>
+    );
+  }
+
+  const description = getRoundDescription(currentRound, roundsInfo);
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
+      <RefreshCw className="h-4 w-4 text-primary animate-spin" style={{ animationDuration: "3s" }} />
+      <span className="text-sm">
+        <span className="text-muted-foreground">Current action: </span>
+        <span className="text-primary font-medium">{description}</span>
+      </span>
+    </div>
+  );
+}
+
 function ServiceControls({ serviceId }: { serviceId: string }) {
   const queryClient = useQueryClient();
   const { data: deployment } = useQuery({
@@ -682,6 +767,10 @@ export function ServiceDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 gap-1">
+            <Zap className="h-3 w-3" />
+            Auto-run is on
+          </Badge>
           <Link to="/service/$id/settings" params={{ id }}>
             <Button variant="outline" size="sm">
               <Settings className="mr-2 h-4 w-4" />
@@ -691,6 +780,8 @@ export function ServiceDetailPage() {
           <ServiceControls serviceId={id} />
         </div>
       </div>
+
+      <CurrentAction serviceId={id} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
