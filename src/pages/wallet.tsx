@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Copy, ExternalLink, Wallet as WalletIcon, Shield, Check, AlertTriangle } from "lucide-react";
+import { Copy, ExternalLink, Wallet as WalletIcon, Shield, Check, AlertTriangle, Info } from "lucide-react";
 import { useState } from "react";
 import { queries } from "@/api/queries";
 import { ErrorDisplay } from "@/components/error-display";
@@ -15,6 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ProfitDisplay } from "@/components/profit-display";
 import { FundAgent } from "@/components/fund-agent";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const CHAIN_EXPLORERS: Record<string, string> = {
   ethereum: "https://etherscan.io/address/",
@@ -43,6 +49,21 @@ function getTokenInfo(address: string) {
 
 function formatTokenBalance(weiStr: string, decimals: number): number {
   return parseInt(weiStr, 10) / Math.pow(10, decimals);
+}
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-[260px] text-xs leading-relaxed">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -185,6 +206,7 @@ export function WalletPage() {
           <CardTitle className="flex items-center gap-2 text-base">
             <WalletIcon className="h-4 w-4 text-primary" />
             Master EOA
+            <InfoTip text="Your main wallet key. Send xDAI here to fund the agent. The middleware automatically moves funds from here → Master Safe → Agent Safe." />
           </CardTitle>
           <CardDescription>
             <AddressDisplay address={wallets[0].address} chain="gnosis" />
@@ -203,6 +225,7 @@ export function WalletPage() {
               <Shield className="h-4 w-4 text-primary" />
               Master Safe
               <Badge variant="secondary">gnosis</Badge>
+              <InfoTip text="A Gnosis Safe (2-of-2 multisig) that securely holds your funds. Automatically funded from Master EOA and forwards funds to the Agent Safe." />
             </CardTitle>
             <CardDescription>
               <AddressDisplay address={safeAddress} chain="gnosis" />
@@ -237,6 +260,7 @@ function AgentSafeCard() {
         <CardTitle className="flex items-center gap-2 text-base">
           <Shield className="h-4 w-4 text-emerald-400" />
           Agent Safe
+          <InfoTip text="The agent's operating wallet. Funded automatically from Master Safe. Used to place trades, pay for mech requests, and cover gas fees." />
           <Badge variant="secondary">gnosis</Badge>
         </CardTitle>
         <CardDescription>
