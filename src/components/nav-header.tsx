@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, LayoutDashboard, Wallet, LogOut } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -42,15 +43,22 @@ export function NavHeader() {
             ))}
           </nav>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground hover:text-foreground shrink-0"
-          onClick={logout}
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">Logout</span>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ConnectButton
+            chainStatus="icon"
+            accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
+            showBalance={{ smallScreen: false, largeScreen: true }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-muted-foreground hover:text-foreground"
+            onClick={logout}
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </Button>
+        </div>
       </div>
     </header>
   );

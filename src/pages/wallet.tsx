@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ProfitDisplay } from "@/components/profit-display";
+import { FundAgent } from "@/components/fund-agent";
 
 const CHAIN_EXPLORERS: Record<string, string> = {
   ethereum: "https://etherscan.io/address/",
@@ -174,6 +175,9 @@ export function WalletPage() {
           <ProfitDisplay value={totalXdai} suffix=" xDAI" decimals={4} className="font-semibold" />
         </p>
       </div>
+
+      {/* Fund Agent */}
+      <FundAgent masterEoa={wallets[0].address} />
 
       {/* Master EOA */}
       <Card className="border-border/50">
