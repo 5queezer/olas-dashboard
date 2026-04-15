@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Activity, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -21,6 +23,7 @@ export function LoginPage() {
     try {
       await mutations.login(password);
       login();
+      await navigate({ to: "/" });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
