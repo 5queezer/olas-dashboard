@@ -16,11 +16,11 @@ export function NavHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-lg">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2 text-primary">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-4">
+        <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+          <Link to="/" className="flex items-center gap-2 text-primary shrink-0">
             <Activity className="h-5 w-5" />
-            <span className="text-lg font-semibold tracking-tight">
+            <span className="hidden sm:inline text-lg font-semibold tracking-tight">
               Olas Operate
             </span>
           </Link>
@@ -45,11 +45,11 @@ export function NavHeader() {
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-muted-foreground hover:text-foreground"
+          className="gap-2 text-muted-foreground hover:text-foreground shrink-0"
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
-          Logout
+          <span className="hidden sm:inline">Logout</span>
         </Button>
       </div>
     </header>

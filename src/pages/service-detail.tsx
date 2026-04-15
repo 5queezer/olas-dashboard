@@ -515,31 +515,35 @@ export function ServiceDetailPage() {
   if (!service) return <ErrorDisplay message="Service not found" />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to="/">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {service.name || service.service_config_id.slice(0, 20)}
-            </h1>
-            {deployment && <StatusBadge status={deployment.status} />}
+    <div className="space-y-6 overflow-x-hidden">
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link to="/">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight truncate">
+                {service.name || service.service_config_id.slice(0, 20)}
+              </h1>
+              {deployment && <StatusBadge status={deployment.status} />}
+            </div>
+            <p className="font-mono text-xs text-muted-foreground truncate">
+              {service.service_config_id}
+            </p>
           </div>
-          <p className="font-mono text-xs text-muted-foreground">
-            {service.service_config_id}
-          </p>
         </div>
-        <Link to="/service/$id/settings" params={{ id }}>
-          <Button variant="outline" size="sm">
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </Button>
-        </Link>
-        <ServiceControls serviceId={id} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link to="/service/$id/settings" params={{ id }}>
+            <Button variant="outline" size="sm">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
+          </Link>
+          <ServiceControls serviceId={id} />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
