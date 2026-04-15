@@ -8,7 +8,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { queries } from "@/api/queries";
-import type { DeploymentInfo, ServiceSummary } from "@/api/types";
+import type {
+  AgentPerformance,
+  DeploymentInfo,
+  ServiceSummary,
+} from "@/api/types";
 import { DeploymentStatus } from "@/api/types";
 import { StatusBadge } from "@/components/status-badge";
 import { HealthIndicator } from "@/components/health-indicator";
@@ -56,11 +60,16 @@ function useAllPerformances(services: ServiceSummary[] | undefined) {
       > = {};
       const responses = await Promise.allSettled(
         services.map(async (s) => {
-          const perf = await api.get<{
-            total_profit?: number;
-            accuracy?: number;
-          }>(`/api/v2/service/${s.service_config_id}/agent_performance`);
-          return { id: s.service_config_id, perf };
+          const perf = await api.get<AgentPerformance>(
+            `/api/v2/service/${s.service_config_id}/agent_performance`,
+          );
+          return {
+            id: s.service_config_id,
+            perf: {
+              total_profit: perf.agent_performance?.metrics.all_time_profit,
+              accuracy: perf.agent_performance?.stats.prediction_accuracy,
+            },
+          };
         }),
       );
       for (const r of responses) {
