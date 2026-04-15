@@ -15,7 +15,6 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
