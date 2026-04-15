@@ -1,14 +1,15 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Save, Loader2, Info, RotateCcw, Send, MessageSquare } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Info, RotateCcw, Send, MessageSquare, Download, Check, ArrowUpCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/api/client";
 import { queries } from "@/api/queries";
-import type { AgentPerformance } from "@/api/types";
+import type { AgentPerformance, ServiceSummary } from "@/api/types";
+import { Badge } from "@/components/ui/badge";
 
 interface ChatuiParams {
   trading_strategy?: string;
@@ -123,6 +124,8 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <AgentVersionCheck serviceId={id} />
 
       <ChatInstructions serviceId={id} onSuccess={() => {
         queryClient.invalidateQueries({ queryKey: ["agent-performance", id] });
@@ -338,6 +341,134 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
         )}
         {chatError && (
           <p className="text-sm text-destructive">{chatError}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const PEARL_TEMPLATE_URL =
+  "https://raw.githubusercontent.com/valory-xyz/olas-operate-app/main/frontend/constants/serviceTemplates/service/trader.ts";
+
+interface LatestVersion {
+  hash: string;
+  version: string;
+}
+
+async function fetchLatestVersion(): Promise<LatestVersion | null> {
+  try {
+    const res = await fetch(PEARL_TEMPLATE_URL);
+    const text = await res.text();
+    const hashMatch = text.match(/hash:\s*'(bafybei[a-z0-9]+)'/);
+    const versionMatch = text.match(/service_version:\s*'(v[\d.]+[^']*)'/);
+    if (hashMatch && versionMatch) {
+      return { hash: hashMatch[1], version: versionMatch[1] };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function AgentVersionCheck({ serviceId }: { serviceId: string }) {
+  const queryClient = useQueryClient();
+  const { data: service } = useQuery(queries.service(serviceId));
+  const [latest, setLatest] = useState<LatestVersion | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateResult, setUpdateResult] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  const currentVersion = (service as ServiceSummary & { agent_release?: { repository?: { version?: string } } })?.agent_release?.repository?.version;
+  const currentHash = service?.hash;
+
+  async function checkForUpdate() {
+    setChecking(true);
+    setUpdateResult(null);
+    setUpdateError(null);
+    const v = await fetchLatestVersion();
+    setLatest(v);
+    setChecking(false);
+  }
+
+  useEffect(() => {
+    checkForUpdate();
+  }, []);
+
+  const hasUpdate = latest && currentHash && latest.hash !== currentHash;
+
+  async function applyUpdate() {
+    if (!latest) return;
+    setUpdating(true);
+    setUpdateError(null);
+    setUpdateResult(null);
+
+    try {
+      await api.patch(`/api/v2/service/${serviceId}`, {
+        hash: latest.hash,
+        agent_release: {
+          is_aea: true,
+          repository: { owner: "valory-xyz", name: "trader", version: latest.version },
+        },
+      });
+      setUpdateResult(`Updated to ${latest.version}. Stop and start the agent to apply.`);
+      queryClient.invalidateQueries({ queryKey: ["service", serviceId] });
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ArrowUpCircle className="h-4 w-4 text-primary" />
+          Agent Version
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Current:</span>
+              <Badge variant="outline" className="font-mono">{currentVersion ?? "unknown"}</Badge>
+            </div>
+            {latest && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Latest:</span>
+                <Badge variant="outline" className={`font-mono ${hasUpdate ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : ""}`}>
+                  {latest.version}
+                </Badge>
+                {!hasUpdate && <Check className="h-3.5 w-3.5 text-emerald-400" />}
+              </div>
+            )}
+          </div>
+
+          {hasUpdate ? (
+            <Button onClick={applyUpdate} disabled={updating} size="sm">
+              {updating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Update to {latest.version}
+            </Button>
+          ) : (
+            <Button onClick={checkForUpdate} disabled={checking} variant="outline" size="sm">
+              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check for updates"}
+            </Button>
+          )}
+        </div>
+
+        {updateResult && (
+          <p className="flex items-center gap-1 text-sm text-emerald-500">
+            <Check className="h-3 w-3" /> {updateResult}
+          </p>
+        )}
+        {updateError && (
+          <p className="text-sm text-destructive">{updateError}</p>
         )}
       </CardContent>
     </Card>
