@@ -231,6 +231,34 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
+
+  // Poll queue status when a prompt is queued
+  useEffect(() => {
+    if (!queued) return;
+    const interval = setInterval(async () => {
+      try {
+        const status = await api.get<{ status: string; result?: Record<string, unknown>; prompt?: string }>(
+          `/api/v2/service/${serviceId}/chat/status`,
+        );
+        if (status.status === "delivered") {
+          setQueued(false);
+          setResponse("Instruction delivered to the agent successfully.");
+          onSuccess();
+        } else if (status.status === "failed") {
+          setQueued(false);
+          setChatError(
+            status.result?.error
+              ? String(status.result.error)
+              : "Failed to deliver instruction after retrying.",
+          );
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [queued, serviceId, onSuccess]);
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
@@ -239,6 +267,7 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
     setSending(true);
     setChatError(null);
     setResponse(null);
+    setQueued(false);
 
     try {
       const result = await api.post<Record<string, unknown>>(
@@ -246,13 +275,17 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
         { prompt: prompt.trim() },
       );
 
-      if (result.error) {
+      if (result.status === "queued") {
+        setQueued(true);
+        setResponse(String(result.message));
+        setPrompt("");
+      } else if (result.error) {
         setChatError(String(result.error));
       } else {
         setResponse(
           result.message
             ? String(result.message)
-            : "Instructions sent successfully. The agent will update its behavior."
+            : "Instructions sent successfully. The agent will update its behavior.",
         );
         setPrompt("");
         onSuccess();
@@ -282,10 +315,10 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. Focus on crypto markets, max bet 0.5 xDAI, avoid sports"
-            disabled={sending}
+            disabled={sending || queued}
             className="bg-background flex-1"
           />
-          <Button type="submit" disabled={sending || !prompt.trim()} size="sm">
+          <Button type="submit" disabled={sending || queued || !prompt.trim()} size="sm">
             {sending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -294,7 +327,13 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
           </Button>
         </form>
 
-        {response && (
+        {queued && (
+          <div className="flex items-center gap-2 text-sm text-yellow-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {response}
+          </div>
+        )}
+        {!queued && response && (
           <p className="text-sm text-emerald-500">{response}</p>
         )}
         {chatError && (
