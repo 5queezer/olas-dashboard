@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Copy, ExternalLink, Wallet as WalletIcon, Shield, Check, AlertTriangle, Info } from "lucide-react";
-import { useState } from "react";
+import { Copy, ExternalLink, Wallet as WalletIcon, Shield, Check, AlertTriangle, Info, ArrowUpRight, Loader2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { useAccount } from "wagmi";
 import { queries } from "@/api/queries";
 import { ErrorDisplay } from "@/components/error-display";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -239,6 +241,9 @@ export function WalletPage() {
 
       {/* Agent Safe — from service config */}
       <AgentSafeCard />
+
+      {/* Withdraw */}
+      <WithdrawFunds />
     </div>
   );
 }
@@ -279,6 +284,177 @@ function AgentSafeCard() {
             Gnosisscan
           </a>
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WithdrawFunds() {
+  const { address: connectedAddress } = useAccount();
+  const { data: extendedRaw } = useQuery<Record<string, unknown>[]>({
+    ...queries.walletExtended,
+    refetchInterval: 30_000,
+  });
+
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [password, setPassword] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Calculate available xDAI (Master EOA + Master Safe)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extended = extendedRaw?.[0] as any;
+  const xdai = "0x0000000000000000000000000000000000000000";
+  let availableWei = BigInt(0);
+  if (extended) {
+    const eoaBal = extended.balances?.gnosis?.[extended.address]?.[xdai];
+    if (eoaBal) availableWei += BigInt(eoaBal);
+    const safes = extended.safes?.gnosis;
+    if (safes) {
+      for (const safe of Object.values(safes) as { balances?: Record<string, string> }[]) {
+        if (safe.balances?.[xdai]) availableWei += BigInt(safe.balances[xdai]);
+      }
+    }
+  }
+  const availableXdai = Number(availableWei) / 1e18;
+
+  async function handleWithdraw(e: FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    setResult(null);
+
+    const weiAmount = BigInt(Math.floor(parseFloat(amount) * 1e18)).toString();
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL ?? "https://olas.vasudev.xyz"}/api/wallet/withdraw`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password,
+            to,
+            withdraw_assets: {
+              gnosis: { [xdai]: weiAmount },
+            },
+          }),
+        },
+      );
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setResult("Funds withdrawn successfully.");
+        setAmount("");
+        setPassword("");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Withdraw failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const parsedAmount = parseFloat(amount);
+  const hasValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          Withdraw
+          <InfoTip text="Withdraw xDAI from Master Safe and Master EOA to any address. The agent will stop trading if funds drop too low." />
+        </CardTitle>
+        <CardDescription>
+          Available: {availableXdai.toFixed(4)} xDAI (Master EOA + Safe)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleWithdraw} className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Recipient</label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="0x..."
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                disabled={sending}
+                className="bg-background flex-1 font-mono text-sm"
+              />
+              {connectedAddress && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline shrink-0"
+                  onClick={() => setTo(connectedAddress)}
+                >
+                  SELF
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Amount (xDAI)</label>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                placeholder="0.0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="0"
+                step="0.01"
+                disabled={sending}
+                className="bg-background flex-1"
+              />
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline shrink-0"
+                onClick={() => {
+                  const max = Math.max(0, availableXdai - 0.01);
+                  setAmount(max > 0 ? max.toFixed(4) : "0");
+                }}
+              >
+                MAX
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Password</label>
+            <Input
+              type="password"
+              placeholder="Your Pearl password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={sending}
+              className="bg-background"
+            />
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {result && (
+            <p className="flex items-center gap-1 text-sm text-emerald-500">
+              <Check className="h-3 w-3" /> {result}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="outline"
+            className="w-full"
+            disabled={sending || !hasValidAmount || !to || !password}
+          >
+            {sending ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Withdrawing...</>
+            ) : (
+              `Withdraw${hasValidAmount ? ` ${amount} xDAI` : ""}`
+            )}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
