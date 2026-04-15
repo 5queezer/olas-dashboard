@@ -55,7 +55,7 @@ function InfoTip({ text }: { text: string }) {
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[260px] text-xs leading-relaxed">
