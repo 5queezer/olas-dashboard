@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-const PRESET_AMOUNTS = ["1", "5", "10"];
-
 export function FundAgent({ masterEoa }: { masterEoa: string }) {
   const [amount, setAmount] = useState("");
   const { address, chain, isConnected } = useAccount();
@@ -106,32 +104,31 @@ export function FundAgent({ masterEoa }: { masterEoa: string }) {
               </span>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="Amount in xDAI"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  min="0"
-                  step="0.1"
-                  disabled={isSending || isConfirming}
-                />
-              </div>
-              <div className="flex gap-2">
-                {PRESET_AMOUNTS.map((preset) => (
-                  <Button
-                    key={preset}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setAmount(preset)}
-                    disabled={isSending || isConfirming}
-                  >
-                    {preset} xDAI
-                  </Button>
-                ))}
-              </div>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                placeholder="Amount in xDAI"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="0"
+                step="0.1"
+                disabled={isSending || isConfirming}
+                className="flex-1"
+              />
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline shrink-0"
+                onClick={() => {
+                  if (balance) {
+                    const max = parseFloat(formatEther(balance.value));
+                    const safe = Math.max(0, max - 0.001);
+                    setAmount(safe > 0 ? safe.toFixed(4) : "0");
+                  }
+                }}
+                disabled={isSending || isConfirming || !balance}
+              >
+                MAX
+              </button>
             </div>
 
             {insufficientBalance && (
