@@ -318,6 +318,7 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
                 <TableHead>Side</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Remaining</TableHead>
                 <TableHead className="text-right">Profit</TableHead>
               </TableRow>
             </TableHeader>
@@ -351,6 +352,9 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
                   </TableCell>
                   <TableCell>
                     <TradeStatusBadge status={trade.status} />
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    <TimeRemaining title={trade.market.title} status={trade.status} />
                   </TableCell>
                   <TableCell className="text-right">
                     <ProfitDisplay
@@ -404,6 +408,36 @@ function TradeStatusBadge({ status }: { status?: string }) {
     );
   }
   return <Badge variant="outline">{status}</Badge>;
+}
+
+function TimeRemaining({ title, status }: { title: string; status: string }) {
+  if (status.toLowerCase() !== "pending") return <span>--</span>;
+
+  // Parse "on or before April 16, 2026" or "before April 15, 2026" from the title
+  const match = title.match(/(?:on or )?before\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+  if (!match) return <span>--</span>;
+
+  const deadline = new Date(match[1]);
+  if (isNaN(deadline.getTime())) return <span>--</span>;
+
+  // Set to end of day
+  deadline.setHours(23, 59, 59, 999);
+
+  const now = new Date();
+  const diffMs = deadline.getTime() - now.getTime();
+
+  if (diffMs <= 0) {
+    return <span className="text-yellow-400">Resolving</span>;
+  }
+
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+
+  if (days > 0) {
+    return <span>{days}d {remainingHours}h</span>;
+  }
+  return <span className="text-yellow-400">{hours}h</span>;
 }
 
 function ServiceControls({ serviceId }: { serviceId: string }) {
