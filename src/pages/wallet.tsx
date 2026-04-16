@@ -291,7 +291,8 @@ function AgentSafeCard() {
 
 function WithdrawFunds() {
   const { address: connectedAddress } = useAccount();
-  const { data: extendedRaw } = useQuery<Record<string, unknown>[]>({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: extendedRaw } = useQuery<any[]>({
     ...queries.walletExtended,
     refetchInterval: 30_000,
   });

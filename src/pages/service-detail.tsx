@@ -623,7 +623,7 @@ function getPhaseStatus(rounds: string[]) {
   let activePhaseIndex = -1;
 
   for (let i = 0; i < PIPELINE_PHASES.length; i++) {
-    if (PIPELINE_PHASES[i].rounds.includes(currentRound)) {
+    if ((PIPELINE_PHASES[i].rounds as readonly string[]).includes(currentRound)) {
       activePhaseIndex = i;
       break;
     }
