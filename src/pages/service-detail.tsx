@@ -675,10 +675,7 @@ function RoundPipeline({ rounds }: { rounds: string[] }) {
                       {status === "completed" ? (
                         <Check className="h-4 w-4" />
                       ) : (
-                        <Icon
-                          className={`h-4 w-4 ${status === "active" ? "animate-spin" : ""}`}
-                          style={status === "active" ? { animationDuration: "3s" } : undefined}
-                        />
+                        <Icon className="h-4 w-4" />
                       )}
                     </div>
                   </div>
@@ -694,12 +691,6 @@ function RoundPipeline({ rounds }: { rounds: string[] }) {
                   >
                     {phase.label}
                   </span>
-                  {/* Active description */}
-                  {status === "active" && (
-                    <span className="mt-0.5 max-w-[100px] text-center text-xs text-primary">
-                      {description}
-                    </span>
-                  )}
                 </div>
                 {/* Connecting line */}
                 {i < PIPELINE_PHASES.length - 1 && (
@@ -715,6 +706,7 @@ function RoundPipeline({ rounds }: { rounds: string[] }) {
             );
           })}
         </div>
+        <p className="mt-3 text-center text-xs text-primary">{description}</p>
       </div>
 
       {/* Mobile: compact dot progress */}
