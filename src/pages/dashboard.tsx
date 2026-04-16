@@ -56,7 +56,7 @@ function useAllPerformances(services: ServiceSummary[] | undefined) {
       if (!services?.length) return {};
       const result: Record<
         string,
-        { total_profit?: number; accuracy?: number }
+        { total_profit?: number; accuracy?: number; currency?: string }
       > = {};
       const responses = await Promise.allSettled(
         services.map(async (s) => {
@@ -68,6 +68,7 @@ function useAllPerformances(services: ServiceSummary[] | undefined) {
             perf: {
               total_profit: perf.agent_performance?.metrics.all_time_profit,
               accuracy: perf.agent_performance?.stats.prediction_accuracy,
+              currency: perf.agent_performance?.currency,
             },
           };
         }),
@@ -120,6 +121,12 @@ export function DashboardPage() {
       return sum + (perf?.total_profit ?? 0);
     }, 0) ?? 0;
 
+  const totalCurrency =
+    services
+      ?.map((s) => performances?.[s.service_config_id]?.currency)
+      .find((c): c is string => typeof c === "string" && c.length > 0) ??
+    "USD";
+
   const accuracies =
     services
       ?.map((s) => performances?.[s.service_config_id]?.accuracy)
@@ -151,7 +158,7 @@ export function DashboardPage() {
         />
         <StatCard
           label="Total Profit"
-          value={<ProfitDisplay value={totalProfit} suffix=" xDAI" decimals={2} />}
+          value={<ProfitDisplay value={totalProfit} suffix={` ${totalCurrency}`} decimals={2} />}
           icon={<TrendingUp className="h-4 w-4" />}
         />
         <StatCard
@@ -217,7 +224,7 @@ export function DashboardPage() {
                             Profit:{" "}
                             <ProfitDisplay
                               value={perf.total_profit}
-                              suffix=" xDAI"
+                              suffix={` ${perf.currency ?? "USD"}`}
                               decimals={2}
                             />
                           </span>
