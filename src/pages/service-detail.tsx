@@ -31,6 +31,10 @@ import {
   Settings,
   Zap,
   RefreshCw,
+  Search,
+  Brain,
+  CheckCircle,
+  Check,
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
@@ -133,14 +137,7 @@ function HealthPanel({
         </div>
         {hc?.rounds && hc.rounds.length > 0 && (
           <div className="mt-4">
-            <p className="mb-2 text-sm text-muted-foreground">Current Rounds</p>
-            <div className="flex flex-wrap gap-1">
-              {hc.rounds.slice(-8).map((round: string, i: number) => (
-                <Badge key={i} variant="secondary" className="text-xs font-mono">
-                  {round.replace(/_round$/, "").replaceAll("_", " ")}
-                </Badge>
-              ))}
-            </div>
+            <RoundPipeline rounds={hc.rounds as string[]} />
           </div>
         )}
       </CardContent>
@@ -550,6 +547,207 @@ function TimeRemaining({ title, status }: { title: string; status: string }) {
     return <span>{days}d {remainingHours}h</span>;
   }
   return <span className="text-yellow-400">{hours}h</span>;
+}
+
+const PIPELINE_PHASES = [
+  {
+    id: "setup",
+    label: "Setup",
+    icon: Settings,
+    rounds: [
+      "registration_startup_round",
+      "registration_round",
+      "fetch_performance_data_round",
+      "update_achievements_round",
+      "chatui_load_round",
+    ],
+  },
+  {
+    id: "research",
+    label: "Research",
+    icon: Search,
+    rounds: [
+      "mech_version_detection_round",
+      "mech_information_round",
+      "check_benchmarking_mode_round",
+      "fetch_markets_router_round",
+    ],
+  },
+  {
+    id: "decide",
+    label: "Decide",
+    icon: Brain,
+    rounds: [
+      "randomness_round",
+      "sampling_round",
+      "tool_selection_round",
+      "decision_request_round",
+      "mech_request_round",
+      "mech_response_round",
+      "decision_receive_round",
+    ],
+  },
+  {
+    id: "trade",
+    label: "Trade",
+    icon: TrendingUp,
+    rounds: [
+      "update_bets_round",
+      "check_stop_trading_round",
+      "bet_placement_round",
+      "sell_outcome_tokens_round",
+      "pre_tx_settlement_round",
+      "collect_signature_round",
+      "finalization_round",
+      "validate_transaction_round",
+      "post_tx_settlement_round",
+      "handle_failed_tx_round",
+    ],
+  },
+  {
+    id: "settle",
+    label: "Settle",
+    icon: CheckCircle,
+    rounds: [
+      "redeem_round",
+      "redeem_router_round",
+      "call_checkpoint_round",
+      "reset_and_pause_round",
+      "service_evicted_round",
+    ],
+  },
+] as const;
+
+function getPhaseStatus(rounds: string[]) {
+  const currentRound = rounds[rounds.length - 1];
+  let activePhaseIndex = -1;
+
+  for (let i = 0; i < PIPELINE_PHASES.length; i++) {
+    if (PIPELINE_PHASES[i].rounds.includes(currentRound)) {
+      activePhaseIndex = i;
+      break;
+    }
+  }
+
+  // If current round not found in any phase, default to first phase
+  if (activePhaseIndex === -1) activePhaseIndex = 0;
+
+  return { activePhaseIndex, currentRound };
+}
+
+function RoundPipeline({ rounds }: { rounds: string[] }) {
+  const { activePhaseIndex, currentRound } = getPhaseStatus(rounds);
+  const description =
+    ROUND_DESCRIPTIONS[currentRound] ??
+    currentRound.replace(/_round$/, "").replaceAll("_", " ");
+
+  return (
+    <>
+      {/* Desktop: horizontal pipeline */}
+      <div className="hidden sm:block">
+        <div className="flex items-start">
+          {PIPELINE_PHASES.map((phase, i) => {
+            const status =
+              i < activePhaseIndex
+                ? "completed"
+                : i === activePhaseIndex
+                  ? "active"
+                  : "pending";
+            const Icon = phase.icon;
+
+            return (
+              <div key={phase.id} className="flex flex-1 items-start">
+                <div className="flex flex-col items-center">
+                  {/* Circle */}
+                  <div className="relative">
+                    {status === "active" && (
+                      <div className="absolute inset-0 -m-1 rounded-full border-2 border-primary animate-pulse" />
+                    )}
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                        status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : status === "active"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      {status === "completed" ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Icon
+                          className={`h-4 w-4 ${status === "active" ? "animate-spin" : ""}`}
+                          style={status === "active" ? { animationDuration: "3s" } : undefined}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  {/* Label */}
+                  <span
+                    className={`mt-1.5 text-xs font-medium ${
+                      status === "completed"
+                        ? "text-emerald-400"
+                        : status === "active"
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {phase.label}
+                  </span>
+                  {/* Active description */}
+                  {status === "active" && (
+                    <span className="mt-0.5 max-w-[100px] text-center text-xs text-primary">
+                      {description}
+                    </span>
+                  )}
+                </div>
+                {/* Connecting line */}
+                {i < PIPELINE_PHASES.length - 1 && (
+                  <div
+                    className={`mt-4 h-0 flex-1 border-t-2 ${
+                      i < activePhaseIndex
+                        ? "border-emerald-500"
+                        : "border-border"
+                    }`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mobile: compact dot progress */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <span className="shrink truncate text-xs text-muted-foreground">
+          {PIPELINE_PHASES[activePhaseIndex]?.label}:{" "}
+          <span className="text-primary">{description}</span>
+        </span>
+        <div className="flex items-center gap-1">
+          {PIPELINE_PHASES.map((phase, i) => {
+            const status =
+              i < activePhaseIndex
+                ? "completed"
+                : i === activePhaseIndex
+                  ? "active"
+                  : "pending";
+            return (
+              <span
+                key={phase.id}
+                className={`inline-block rounded-full ${
+                  status === "completed"
+                    ? "h-2 w-2 bg-emerald-400"
+                    : status === "active"
+                      ? "h-2.5 w-2.5 bg-primary animate-pulse"
+                      : "h-2 w-2 bg-muted-foreground/30"
+                }`}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
 }
 
 const ROUND_DESCRIPTIONS: Record<string, string> = {
