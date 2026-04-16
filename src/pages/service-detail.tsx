@@ -305,7 +305,7 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
       accessorKey: "market.title",
       header: "Market",
       cell: ({ row }) => (
-        <div className="max-w-[300px]">
+        <div className="min-w-0">
           <a
             href={row.original.market.external_url}
             target="_blank"
