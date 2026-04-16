@@ -410,7 +410,7 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Table className="table-fixed">
+        <Table className="min-w-[640px] table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
