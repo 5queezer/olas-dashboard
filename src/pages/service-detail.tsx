@@ -35,6 +35,7 @@ import {
   Brain,
   CheckCircle,
   Check,
+  Info,
 } from "lucide-react";
 import { queries, mutations } from "@/api/queries";
 import { DeploymentStatus } from "@/api/types";
@@ -61,6 +62,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function HealthPanel({
   serviceId,
@@ -123,7 +130,21 @@ function HealthPanel({
                 <p className="font-mono text-sm">{hc.agent_health.staking_status ?? "--"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Has Funds</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Agent Funded</p>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[260px] text-xs leading-relaxed">
+                        True when the agent&apos;s on-chain balance is above
+                        its configured gas/operations threshold. No means a
+                        top-up from the Master Safe is warranted.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="text-sm">
                   {hc.agent_health.has_required_funds === true ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
