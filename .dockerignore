@@ -1,6 +1,7 @@
 node_modules
 dist
 .git
+.claude
 .env.local
 .env.*.local
 *.md
