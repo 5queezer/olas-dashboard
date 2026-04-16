@@ -347,17 +347,23 @@ function ChatInstructions({ serviceId, onSuccess }: { serviceId: string; onSucce
   );
 }
 
-const PEARL_TEMPLATE_URL =
-  "https://raw.githubusercontent.com/valory-xyz/olas-operate-app/main/frontend/constants/serviceTemplates/service/trader.ts";
+const PEARL_TEMPLATE_URLS: Record<string, string> = {
+  trader:
+    "https://raw.githubusercontent.com/valory-xyz/olas-operate-app/main/frontend/constants/serviceTemplates/service/trader.ts",
+};
 
 interface LatestVersion {
   hash: string;
   version: string;
 }
 
-async function fetchLatestVersion(): Promise<LatestVersion | null> {
+async function fetchLatestVersion(
+  repoName: string,
+): Promise<LatestVersion | null> {
+  const url = PEARL_TEMPLATE_URLS[repoName];
+  if (!url) return null;
   try {
-    const res = await fetch(PEARL_TEMPLATE_URL);
+    const res = await fetch(url);
     const text = await res.text();
     const hashMatch = text.match(/hash:\s*'(bafybei[a-z0-9]+)'/);
     const versionMatch = text.match(/service_version:\s*'(v[\d.]+[^']*)'/);
@@ -379,26 +385,35 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
   const [updateResult, setUpdateResult] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  const currentVersion = (service as ServiceSummary & { agent_release?: { repository?: { version?: string } } })?.agent_release?.repository?.version;
+  const repo = (
+    service as ServiceSummary & {
+      agent_release?: { repository?: { name?: string; version?: string } };
+    }
+  )?.agent_release?.repository;
+  const currentVersion = repo?.version;
+  const currentRepoName = repo?.name;
   const currentHash = service?.hash;
+  const versionCheckSupported =
+    !!currentRepoName && currentRepoName in PEARL_TEMPLATE_URLS;
 
   async function checkForUpdate() {
+    if (!currentRepoName || !versionCheckSupported) return;
     setChecking(true);
     setUpdateResult(null);
     setUpdateError(null);
-    const v = await fetchLatestVersion();
+    const v = await fetchLatestVersion(currentRepoName);
     setLatest(v);
     setChecking(false);
   }
 
   useEffect(() => {
-    checkForUpdate();
-  }, []);
+    if (versionCheckSupported) checkForUpdate();
+  }, [versionCheckSupported, currentRepoName]);
 
   const hasUpdate = latest && currentHash && latest.hash !== currentHash;
 
   async function applyUpdate() {
-    if (!latest) return;
+    if (!latest || !currentRepoName) return;
     setUpdating(true);
     setUpdateError(null);
     setUpdateResult(null);
@@ -408,7 +423,11 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
         hash: latest.hash,
         agent_release: {
           is_aea: true,
-          repository: { owner: "valory-xyz", name: "trader", version: latest.version },
+          repository: {
+            owner: "valory-xyz",
+            name: currentRepoName,
+            version: latest.version,
+          },
         },
       });
       setUpdateResult(`Updated to ${latest.version}. Stop and start the agent to apply.`);
@@ -434,8 +453,11 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Current:</span>
               <Badge variant="outline" className="font-mono">{currentVersion ?? "unknown"}</Badge>
+              {currentRepoName && (
+                <span className="text-xs text-muted-foreground">({currentRepoName})</span>
+              )}
             </div>
-            {latest && (
+            {versionCheckSupported && latest && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Latest:</span>
                 <Badge variant="outline" className={`font-mono ${hasUpdate ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : ""}`}>
@@ -446,22 +468,31 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
             )}
           </div>
 
-          {hasUpdate ? (
-            <Button onClick={applyUpdate} disabled={updating} size="sm">
-              {updating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Update to {latest.version}
-            </Button>
-          ) : (
-            <Button onClick={checkForUpdate} disabled={checking} variant="outline" size="sm">
-              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check for updates"}
-            </Button>
-          )}
+          {versionCheckSupported ? (
+            hasUpdate ? (
+              <Button onClick={applyUpdate} disabled={updating} size="sm">
+                {updating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Update to {latest.version}
+              </Button>
+            ) : (
+              <Button onClick={checkForUpdate} disabled={checking} variant="outline" size="sm">
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check for updates"}
+              </Button>
+            )
+          ) : null}
         </div>
 
+        {!versionCheckSupported && (
+          <p className="text-xs text-muted-foreground">
+            Automatic update checking isn&apos;t wired up for this agent yet.
+            Check the {currentRepoName ?? "agent"} repository on GitHub for
+            releases.
+          </p>
+        )}
         {updateResult && (
           <p className="flex items-center gap-1 text-sm text-emerald-500">
             <Check className="h-3 w-3" /> {updateResult}
