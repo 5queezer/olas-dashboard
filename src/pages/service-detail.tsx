@@ -367,16 +367,16 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
       size: 80,
     },
     {
-      id: "remaining",
-      header: "Remaining",
+      id: "closes",
+      header: "Closes",
       accessorFn: (row) => {
         if (row.status.toLowerCase() !== "pending") return -1;
         const dl = parseDeadlineMs(row.market.title);
-        return dl ? dl - Date.now() : Infinity;
+        return dl ?? Infinity;
       },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          <TimeRemaining title={row.original.market.title} status={row.original.status} />
+          <CloseDate title={row.original.market.title} status={row.original.status} />
         </span>
       ),
       size: 90,
@@ -543,34 +543,21 @@ function TradeStatusBadge({ status }: { status?: string }) {
   return <Badge variant="outline">{status}</Badge>;
 }
 
-function TimeRemaining({ title, status }: { title: string; status: string }) {
+function CloseDate({ title, status }: { title: string; status: string }) {
   if (status.toLowerCase() !== "pending") return <span>--</span>;
 
-  // Parse "on or before April 16, 2026" or "before April 15, 2026" from the title
-  const match = title.match(/(?:on or )?before\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
-  if (!match) return <span>--</span>;
+  const ms = parseDeadlineMs(title);
+  if (ms === null) return <span>--</span>;
 
-  const deadline = new Date(match[1]);
-  if (isNaN(deadline.getTime())) return <span>--</span>;
-
-  // Set to end of day
-  deadline.setHours(23, 59, 59, 999);
-
-  const now = new Date();
-  const diffMs = deadline.getTime() - now.getTime();
-
-  if (diffMs <= 0) {
+  if (ms <= Date.now()) {
     return <span className="text-yellow-400">Resolving</span>;
   }
 
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const days = Math.floor(hours / 24);
-  const remainingHours = hours % 24;
-
-  if (days > 0) {
-    return <span>{days}d {remainingHours}h</span>;
-  }
-  return <span className="text-yellow-400">{hours}h</span>;
+  const label = new Date(ms).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return <span>{label}</span>;
 }
 
 const PIPELINE_PHASES = [
