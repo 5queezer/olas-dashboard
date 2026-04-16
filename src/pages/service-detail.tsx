@@ -299,20 +299,19 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
 
   const columns: ColumnDef<PredictionItem>[] = useMemo(() => [
     {
+      id: "market",
       accessorKey: "market.title",
       header: "Market",
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <a
-            href={row.original.market.external_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary text-sm line-clamp-1"
-            title={row.original.market.title}
-          >
-            {row.original.market.title}
-          </a>
-        </div>
+        <a
+          href={row.original.market.external_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-primary block truncate text-sm"
+          title={row.original.market.title}
+        >
+          {row.original.market.title}
+        </a>
       ),
     },
     {
@@ -411,46 +410,50 @@ function TradesPanel({ serviceId }: { serviceId: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={`cursor-pointer select-none hover:text-foreground ${
-                        ["bet_amount", "net_profit"].includes(header.id) ? "text-right" : ""
-                      }`}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{ asc: " \u2191", desc: " \u2193" }[header.column.getIsSorted() as string] ?? ""}
-                      </span>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={
-                        ["bet_amount", "net_profit"].includes(cell.column.id) ? "text-right" : ""
-                      }
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <Table className="table-fixed">
+          <TableHeader>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow key={hg.id}>
+                {hg.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    style={{
+                      width:
+                        header.id === "market"
+                          ? "40%"
+                          : header.column.columnDef.size,
+                    }}
+                    className={`cursor-pointer select-none hover:text-foreground ${
+                      ["bet_amount", "net_profit"].includes(header.id) ? "text-right" : ""
+                    }`}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {{ asc: " \u2191", desc: " \u2193" }[header.column.getIsSorted() as string] ?? ""}
+                    </span>
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className={
+                      ["bet_amount", "net_profit"].includes(cell.column.id) ? "text-right" : ""
+                    }
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
 
         {table.getPageCount() > 1 && (
           <div className="flex items-center justify-between pt-2">
