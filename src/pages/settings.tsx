@@ -352,6 +352,10 @@ const PEARL_TEMPLATE_URLS: Record<string, string> = {
     "https://raw.githubusercontent.com/valory-xyz/olas-operate-app/main/frontend/constants/serviceTemplates/service/trader.ts",
 };
 
+// Services running a custom fork — Pearl's "Update to vX" would clobber our code.
+// Remove an entry to re-enable the upstream update check for that repo.
+const LOCKED_REPOS: ReadonlySet<string> = new Set(["trader"]);
+
 interface LatestVersion {
   hash: string;
   version: string;
@@ -393,8 +397,11 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
   const currentVersion = repo?.version;
   const currentRepoName = repo?.name;
   const currentHash = service?.hash;
+  const isLocked = !!currentRepoName && LOCKED_REPOS.has(currentRepoName);
   const versionCheckSupported =
-    !!currentRepoName && currentRepoName in PEARL_TEMPLATE_URLS;
+    !isLocked
+    && !!currentRepoName
+    && currentRepoName in PEARL_TEMPLATE_URLS;
 
   async function checkForUpdate() {
     if (!currentRepoName || !versionCheckSupported) return;
@@ -486,11 +493,17 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
           ) : null}
         </div>
 
-        {!versionCheckSupported && (
+        {!versionCheckSupported && !isLocked && (
           <p className="text-xs text-muted-foreground">
             Automatic update checking isn&apos;t wired up for this agent yet.
             Check the {currentRepoName ?? "agent"} repository on GitHub for
             releases.
+          </p>
+        )}
+        {isLocked && (
+          <p className="text-xs text-muted-foreground">
+            Running a custom fork of {currentRepoName}. Upstream update checks
+            are disabled — manage updates by editing the service hash directly.
           </p>
         )}
         {updateResult && (
