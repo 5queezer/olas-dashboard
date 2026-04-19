@@ -17,8 +17,12 @@ interface ChatuiParams {
   allowed_tools?: string[] | null;
   fixed_bet_size?: number;
   max_bet_size?: number;
+  ensemble_size?: number;
   [key: string]: unknown;
 }
+
+const ENSEMBLE_SIZE_MIN = 1;
+const ENSEMBLE_SIZE_MAX = 7;
 
 const STRATEGIES = [
   { value: "kelly_criterion", label: "Kelly Criterion", description: "Optimal bet sizing based on edge and odds" },
@@ -52,6 +56,7 @@ export function SettingsPage() {
   const [strategy, setStrategy] = useState("");
   const [fixedBet, setFixedBet] = useState("");
   const [maxBet, setMaxBet] = useState("");
+  const [ensembleSize, setEnsembleSize] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,7 @@ export function SettingsPage() {
       setStrategy(params.trading_strategy ?? "kelly_criterion");
       setFixedBet(params.fixed_bet_size ? weiToXdai(params.fixed_bet_size) : "0.025");
       setMaxBet(params.max_bet_size ? weiToXdai(params.max_bet_size) : "2.0");
+      setEnsembleSize(String(params.ensemble_size ?? ENSEMBLE_SIZE_MIN));
     }
   }, [params]);
 
@@ -69,11 +75,25 @@ export function SettingsPage() {
     setError(null);
     setSaved(false);
 
+    const ensembleParsed = parseInt(ensembleSize, 10);
+    if (
+      !Number.isFinite(ensembleParsed)
+      || ensembleParsed < ENSEMBLE_SIZE_MIN
+      || ensembleParsed > ENSEMBLE_SIZE_MAX
+    ) {
+      setError(
+        `Ensemble size must be an integer between ${ENSEMBLE_SIZE_MIN} and ${ENSEMBLE_SIZE_MAX}.`,
+      );
+      setSaving(false);
+      return;
+    }
+
     try {
       await api.patch<ChatuiParams>(`/api/v2/service/${id}/chatui_params`, {
         trading_strategy: strategy,
         fixed_bet_size: xdaiToWei(fixedBet),
         max_bet_size: xdaiToWei(maxBet),
+        ensemble_size: ensembleParsed,
       });
       queryClient.invalidateQueries({ queryKey: ["chatui-params", id] });
       setSaved(true);
@@ -199,6 +219,35 @@ export function SettingsPage() {
             />
             <p className="text-xs text-muted-foreground">
               Maximum amount per trade regardless of strategy
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Prediction Ensemble</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Ensemble Size
+            </label>
+            <Input
+              type="number"
+              step="1"
+              min={ENSEMBLE_SIZE_MIN}
+              max={ENSEMBLE_SIZE_MAX}
+              value={ensembleSize}
+              onChange={(e) => setEnsembleSize(e.target.value)}
+              className="bg-background max-w-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              Number of Mech prediction tools queried in parallel per trade and
+              aggregated via confidence-weighted averaging with disagreement
+              penalty. {ENSEMBLE_SIZE_MIN} disables the ensemble (cheapest).
+              Higher values cost one extra Mech fee per tool but improve
+              accuracy. Range {ENSEMBLE_SIZE_MIN}–{ENSEMBLE_SIZE_MAX}.
             </p>
           </div>
         </CardContent>
@@ -377,12 +426,18 @@ function truncateHash(hash: string): string {
 
 function CustomAgentCard({
   service,
+  serviceId,
 }: {
   service?: ServiceSummary & {
     hash_history?: Record<string, string>;
     agent_release?: { repository?: { owner?: string; name?: string } };
   };
+  serviceId: string;
 }) {
+  const { data: chatuiParams } = useQuery({
+    queryKey: ["chatui-params", serviceId],
+    queryFn: () => api.get<{ ensemble_size?: number }>(`/api/v2/service/${serviceId}/chatui_params`),
+  });
   const repo = service?.agent_release?.repository;
   const repoName = repo?.name;
   const hash = service?.hash ?? "";
@@ -433,6 +488,17 @@ function CustomAgentCard({
             {latestTs ? formatRelative(latestTs) : "unknown"}
           </span>
         </div>
+        {chatuiParams?.ensemble_size != null && (
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Ensemble size:</span>
+            <Badge variant="outline" className="font-mono">
+              {chatuiParams.ensemble_size}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              tool{chatuiParams.ensemble_size === 1 ? "" : "s"} queried per trade
+            </span>
+          </div>
+        )}
         <p className="pt-1 text-xs text-muted-foreground">
           Running a custom fork. Upstream version checks are disabled — manage
           updates by publishing a new IPFS hash and patching this service.
@@ -508,6 +574,7 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
   if (isLocked) {
     return (
       <CustomAgentCard
+        serviceId={serviceId}
         service={
           service as ServiceSummary & {
             hash_history?: Record<string, string>;
