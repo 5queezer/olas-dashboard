@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Save, Loader2, Info, RotateCcw, Send, MessageSquare, Download, Check, ArrowUpCircle } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Info, RotateCcw, Send, MessageSquare, Download, Check, ArrowUpCircle, GitFork } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -356,6 +356,92 @@ const PEARL_TEMPLATE_URLS: Record<string, string> = {
 // Remove an entry to re-enable the upstream update check for that repo.
 const LOCKED_REPOS: ReadonlySet<string> = new Set(["trader"]);
 
+// GitHub owner for the active fork, used to link out from CustomAgentCard.
+// Override per-deployment if you're running someone else's fork.
+const FORK_OWNER = "5queezer";
+
+function formatRelative(ts: number): string {
+  const diffSec = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (diffSec < 90) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 90) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 48) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+function truncateHash(hash: string): string {
+  if (hash.length <= 20) return hash;
+  return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
+}
+
+function CustomAgentCard({
+  service,
+}: {
+  service?: ServiceSummary & {
+    hash_history?: Record<string, string>;
+    agent_release?: { repository?: { owner?: string; name?: string } };
+  };
+}) {
+  const repo = service?.agent_release?.repository;
+  const repoName = repo?.name;
+  const hash = service?.hash ?? "";
+  const history = service?.hash_history ?? {};
+  const latestTs = Object.keys(history)
+    .map((k) => parseInt(k, 10))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => b - a)[0];
+
+  // Prefer the user's fork; fall back to repo.owner if somehow different.
+  const owner = repo?.owner === "valory-xyz" ? FORK_OWNER : (repo?.owner ?? FORK_OWNER);
+  const forkPath = repoName ? `${owner}/${repoName}` : null;
+  const forkUrl = forkPath ? `https://github.com/${forkPath}` : null;
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <GitFork className="h-4 w-4 text-primary" />
+          Custom Agent
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Fork:</span>
+          {forkUrl ? (
+            <a
+              href={forkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-primary hover:underline"
+            >
+              {forkPath}
+            </a>
+          ) : (
+            <span className="text-muted-foreground">unknown</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">IPFS hash:</span>
+          <Badge variant="outline" className="font-mono" title={hash}>
+            {truncateHash(hash)}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Last deployed:</span>
+          <span className="font-mono">
+            {latestTs ? formatRelative(latestTs) : "unknown"}
+          </span>
+        </div>
+        <p className="pt-1 text-xs text-muted-foreground">
+          Running a custom fork. Upstream version checks are disabled — manage
+          updates by publishing a new IPFS hash and patching this service.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface LatestVersion {
   hash: string;
   version: string;
@@ -418,6 +504,19 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
   }, [versionCheckSupported, currentRepoName]);
 
   const hasUpdate = latest && currentHash && latest.hash !== currentHash;
+
+  if (isLocked) {
+    return (
+      <CustomAgentCard
+        service={
+          service as ServiceSummary & {
+            hash_history?: Record<string, string>;
+            agent_release?: { repository?: { owner?: string; name?: string } };
+          }
+        }
+      />
+    );
+  }
 
   async function applyUpdate() {
     if (!latest || !currentRepoName) return;
@@ -493,17 +592,11 @@ function AgentVersionCheck({ serviceId }: { serviceId: string }) {
           ) : null}
         </div>
 
-        {!versionCheckSupported && !isLocked && (
+        {!versionCheckSupported && (
           <p className="text-xs text-muted-foreground">
             Automatic update checking isn&apos;t wired up for this agent yet.
             Check the {currentRepoName ?? "agent"} repository on GitHub for
             releases.
-          </p>
-        )}
-        {isLocked && (
-          <p className="text-xs text-muted-foreground">
-            Running a custom fork of {currentRepoName}. Upstream update checks
-            are disabled — manage updates by editing the service hash directly.
           </p>
         )}
         {updateResult && (
