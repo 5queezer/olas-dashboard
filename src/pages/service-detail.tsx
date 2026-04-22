@@ -137,16 +137,21 @@ function HealthPanel({
                       <TooltipTrigger>
                         <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-[260px] text-xs leading-relaxed">
+                      <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
                         True when the agent&apos;s on-chain balance is above
                         its configured gas/operations threshold. No means a
-                        top-up from the Master Safe is warranted.
+                        top-up from the Master Safe is warranted. Hidden while
+                        the staking KPI is met — the agent skips the
+                        transaction rounds that refresh this value, so the
+                        last-reported reading is stale.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 <p className="text-sm">
-                  {hc.agent_health.has_required_funds === true ? (
+                  {hc.agent_health.is_staking_kpi_met === true ? (
+                    <span className="text-muted-foreground" title="Not refreshed while staking KPI is met">—</span>
+                  ) : hc.agent_health.has_required_funds === true ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
                   ) : hc.agent_health.has_required_funds === false ? (
                     <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">No</Badge>
