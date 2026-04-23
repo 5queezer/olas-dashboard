@@ -7,6 +7,7 @@ import type {
   ExtendedWalletInfo,
   FundingRequirement,
   LoginResponse,
+  MiddlewareVersionInfo,
   ServiceSummary,
   WalletInfo,
 } from "./types";
@@ -15,6 +16,10 @@ export const queries = {
   apiInfo: {
     queryKey: ["api-info"],
     queryFn: () => api.get<ApiInfo>("/api"),
+  },
+  middlewareVersion: {
+    queryKey: ["middleware-version"],
+    queryFn: () => api.get<MiddlewareVersionInfo>("/api/v2/version"),
   },
   account: {
     queryKey: ["account"],

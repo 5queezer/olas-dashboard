@@ -4,6 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { MiddlewareVersionBadge } from "@/components/middleware-version-badge";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -44,6 +45,7 @@ export function NavHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <MiddlewareVersionBadge />
           <ConnectButton
             chainStatus="icon"
             accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
