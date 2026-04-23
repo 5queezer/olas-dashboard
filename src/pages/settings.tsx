@@ -253,6 +253,8 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      <TradingGateCard serviceId={id} />
+
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
@@ -275,6 +277,109 @@ export function SettingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function TradingGateCard({ serviceId }: { serviceId: string }) {
+  const queryClient = useQueryClient();
+  const { data: service } = useQuery(queries.service(serviceId));
+  const envVars =
+    (service as ServiceSummary & {
+      env_variables?: Record<
+        string,
+        { value: string; provision_type: string; name?: string; description?: string }
+      >;
+    } | undefined)?.env_variables;
+
+  const currentValue = envVars?.STOP_TRADING_IF_STAKING_KPI_MET?.value;
+  // Default: true (upstream default). "Keep trading" is the inverse.
+  const initialKeepTrading = currentValue === "false";
+
+  const [keepTrading, setKeepTrading] = useState<boolean>(initialKeepTrading);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setKeepTrading(currentValue === "false");
+  }, [currentValue]);
+
+  const dirty = keepTrading !== initialKeepTrading;
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.patch(`/api/v2/service/${serviceId}`, {
+        env_variables: {
+          STOP_TRADING_IF_STAKING_KPI_MET: {
+            name: "Stop trading if staking KPI met",
+            description:
+              "If true, the agent skips new bets once the checkpoint KPI is satisfied. Set to false to keep trading for PnL.",
+            value: keepTrading ? "false" : "true",
+            provision_type: "user",
+          },
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["service", serviceId] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="text-base">Staking KPI Gate</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/50 p-4">
+          <input
+            type="checkbox"
+            checked={keepTrading}
+            onChange={(e) => setKeepTrading(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-primary"
+          />
+          <div className="space-y-1">
+            <div className="text-sm font-medium">
+              Keep trading after staking KPI is met
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              By default the agent stops placing new bets once it has hit
+              enough Mech calls to satisfy the checkpoint staking reward —
+              this protects bankroll since additional bets earn no extra
+              staking payout. Enable this only if you trust your model&apos;s
+              edge and want the full trading PnL on top of the staking reward.
+              Changes require stopping and starting the agent to take effect.
+            </p>
+          </div>
+        </label>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={saving || !dirty} size="sm">
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save Gate Setting
+          </Button>
+          {saved && (
+            <span className="flex items-center gap-1 text-sm text-emerald-500">
+              <RotateCcw className="h-3 w-3" /> Saved — restart agent to apply
+            </span>
+          )}
+          {error && (
+            <span className="text-sm text-destructive">{error}</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
