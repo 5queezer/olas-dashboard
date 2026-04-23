@@ -150,9 +150,9 @@ function HealthPanel({
                 <p className="text-sm">
                   {hc.agent_health.is_staking_kpi_met === true ? (
                     <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">Paused · KPI met</Badge>
-                  ) : (
+                  ) : hc.agent_health.is_staking_kpi_met === false ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
-                  )}
+                  ) : "--"}
                 </p>
               </div>
               <div>
@@ -174,12 +174,14 @@ function HealthPanel({
                   </TooltipProvider>
                 </div>
                 <p className="text-sm">
-                  {hc.agent_health.is_staking_kpi_met === true ? (
+                  {hc.agent_health.has_required_funds === false ? (
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                      {hc.agent_health.is_staking_kpi_met === true ? "No · Stale" : "No"}
+                    </Badge>
+                  ) : hc.agent_health.is_staking_kpi_met === true ? (
                     <Badge variant="outline" className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20" title="Not refreshed while trading is paused">Stale</Badge>
                   ) : hc.agent_health.has_required_funds === true ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
-                  ) : hc.agent_health.has_required_funds === false ? (
-                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">No</Badge>
                   ) : "--"}
                 </p>
               </div>
@@ -679,6 +681,14 @@ function getPhaseStatus(rounds: string[]) {
   return { activePhaseIndex, currentRound };
 }
 
+const PAUSE_ROUNDS = new Set([
+  "reset_and_pause_round",
+  "call_checkpoint_round",
+  "check_stop_trading_round",
+]);
+const TRADING_PAUSED_CAPTION =
+  "Trading paused — staking KPI met. Resumes after next checkpoint.";
+
 function RoundPipeline({
   rounds,
   isTradingPaused = false,
@@ -687,14 +697,9 @@ function RoundPipeline({
   isTradingPaused?: boolean;
 }) {
   const { activePhaseIndex, currentRound } = getPhaseStatus(rounds);
-  const PAUSE_ROUNDS = new Set([
-    "reset_and_pause_round",
-    "call_checkpoint_round",
-    "check_stop_trading_round",
-  ]);
   const description =
     isTradingPaused && PAUSE_ROUNDS.has(currentRound)
-      ? "Trading paused — staking KPI met. Resumes after next checkpoint."
+      ? TRADING_PAUSED_CAPTION
       : ROUND_DESCRIPTIONS[currentRound] ??
         currentRound.replace(/_round$/, "").replaceAll("_", " ");
 
@@ -833,7 +838,12 @@ const ROUND_DESCRIPTIONS: Record<string, string> = {
   service_evicted_round: "Agent evicted from staking",
 };
 
-function getRoundDescription(round: string, roundsInfo?: Record<string, { name?: string; description?: string }>): string {
+function getRoundDescription(
+  round: string,
+  roundsInfo?: Record<string, { name?: string; description?: string }>,
+  isTradingPaused = false,
+): string {
+  if (isTradingPaused && PAUSE_ROUNDS.has(round)) return TRADING_PAUSED_CAPTION;
   if (roundsInfo?.[round]?.description) return roundsInfo[round].description!;
   if (ROUND_DESCRIPTIONS[round]) return ROUND_DESCRIPTIONS[round];
   return round.replace(/_round$/, "").replaceAll("_", " ");
@@ -869,7 +879,8 @@ function CurrentAction({ serviceId }: { serviceId: string }) {
     );
   }
 
-  const description = getRoundDescription(currentRound, roundsInfo);
+  const isTradingPaused = hc?.agent_health?.is_staking_kpi_met === true;
+  const description = getRoundDescription(currentRound, roundsInfo, isTradingPaused);
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
