@@ -4,6 +4,17 @@ export interface ApiInfo {
   home: string;
 }
 
+export interface MiddlewareVersionInfo {
+  installed: string;
+  latest: {
+    version: string;
+    published_at: string;
+    html_url: string;
+  } | null;
+  is_outdated: boolean | null;
+  checked_at: string | null;
+}
+
 export interface AccountStatus {
   is_setup: boolean;
 }
