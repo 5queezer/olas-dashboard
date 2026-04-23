@@ -131,6 +131,32 @@ function HealthPanel({
               </div>
               <div>
                 <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Trading</p>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
+                        Paused when the staking KPI is already met for the
+                        current checkpoint period — the agent skips placing
+                        new bets to protect bankroll and resumes after the
+                        next checkpoint. Disabled means trading is turned off
+                        in the agent config.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <p className="text-sm">
+                  {hc.agent_health.is_staking_kpi_met === true ? (
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">Paused · KPI met</Badge>
+                  ) : hc.agent_health.is_staking_kpi_met === false ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
+                  ) : "--"}
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1">
                   <p className="text-sm text-muted-foreground">Agent Funded</p>
                   <TooltipProvider>
                     <Tooltip>
@@ -140,21 +166,22 @@ function HealthPanel({
                       <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
                         True when the agent&apos;s on-chain balance is above
                         its configured gas/operations threshold. No means a
-                        top-up from the Master Safe is warranted. Hidden while
-                        the staking KPI is met — the agent skips the
-                        transaction rounds that refresh this value, so the
-                        last-reported reading is stale.
+                        top-up from the Master Safe is warranted. Stale while
+                        trading is paused — the agent skips the transaction
+                        rounds that refresh this value.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 <p className="text-sm">
-                  {hc.agent_health.is_staking_kpi_met === true ? (
-                    <span className="text-muted-foreground" title="Not refreshed while staking KPI is met">—</span>
+                  {hc.agent_health.has_required_funds === false ? (
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                      {hc.agent_health.is_staking_kpi_met === true ? "No · Stale" : "No"}
+                    </Badge>
+                  ) : hc.agent_health.is_staking_kpi_met === true ? (
+                    <Badge variant="outline" className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20" title="Not refreshed while trading is paused">Stale</Badge>
                   ) : hc.agent_health.has_required_funds === true ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
-                  ) : hc.agent_health.has_required_funds === false ? (
-                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">No</Badge>
                   ) : "--"}
                 </p>
               </div>
@@ -163,7 +190,10 @@ function HealthPanel({
         </div>
         {hc?.rounds && hc.rounds.length > 0 && (
           <div className="mt-4">
-            <RoundPipeline rounds={hc.rounds as string[]} />
+            <RoundPipeline
+              rounds={hc.rounds as string[]}
+              isTradingPaused={hc.agent_health?.is_staking_kpi_met === true}
+            />
           </div>
         )}
       </CardContent>
@@ -651,11 +681,27 @@ function getPhaseStatus(rounds: string[]) {
   return { activePhaseIndex, currentRound };
 }
 
-function RoundPipeline({ rounds }: { rounds: string[] }) {
+const PAUSE_ROUNDS = new Set([
+  "reset_and_pause_round",
+  "call_checkpoint_round",
+  "check_stop_trading_round",
+]);
+const TRADING_PAUSED_CAPTION =
+  "Trading paused — staking KPI met. Resumes after next checkpoint.";
+
+function RoundPipeline({
+  rounds,
+  isTradingPaused = false,
+}: {
+  rounds: string[];
+  isTradingPaused?: boolean;
+}) {
   const { activePhaseIndex, currentRound } = getPhaseStatus(rounds);
   const description =
-    ROUND_DESCRIPTIONS[currentRound] ??
-    currentRound.replace(/_round$/, "").replaceAll("_", " ");
+    isTradingPaused && PAUSE_ROUNDS.has(currentRound)
+      ? TRADING_PAUSED_CAPTION
+      : ROUND_DESCRIPTIONS[currentRound] ??
+        currentRound.replace(/_round$/, "").replaceAll("_", " ");
 
   return (
     <>
@@ -792,7 +838,12 @@ const ROUND_DESCRIPTIONS: Record<string, string> = {
   service_evicted_round: "Agent evicted from staking",
 };
 
-function getRoundDescription(round: string, roundsInfo?: Record<string, { name?: string; description?: string }>): string {
+function getRoundDescription(
+  round: string,
+  roundsInfo?: Record<string, { name?: string; description?: string }>,
+  isTradingPaused = false,
+): string {
+  if (isTradingPaused && PAUSE_ROUNDS.has(round)) return TRADING_PAUSED_CAPTION;
   if (roundsInfo?.[round]?.description) return roundsInfo[round].description!;
   if (ROUND_DESCRIPTIONS[round]) return ROUND_DESCRIPTIONS[round];
   return round.replace(/_round$/, "").replaceAll("_", " ");
@@ -828,7 +879,8 @@ function CurrentAction({ serviceId }: { serviceId: string }) {
     );
   }
 
-  const description = getRoundDescription(currentRound, roundsInfo);
+  const isTradingPaused = hc?.agent_health?.is_staking_kpi_met === true;
+  const description = getRoundDescription(currentRound, roundsInfo, isTradingPaused);
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
