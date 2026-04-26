@@ -138,11 +138,11 @@ function HealthPanel({
                         <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
-                        Paused when the staking KPI is already met for the
-                        current checkpoint period — the agent skips placing
-                        new bets to protect bankroll and resumes after the
-                        next checkpoint. Disabled means trading is turned off
-                        in the agent config.
+                        Paused means the staking KPI is already met for the
+                        current checkpoint period. The agent skips new trades and
+                        paid Mech calls until the next staking checkpoint is due
+                        and the checkpoint transaction settles. Disabled means
+                        trading is turned off in the agent config.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -165,21 +165,20 @@ function HealthPanel({
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
                         True when the agent&apos;s on-chain balance is above
-                        its configured gas/operations threshold. No means a
-                        top-up from the Master Safe is warranted. Stale while
-                        trading is paused — the agent skips the transaction
-                        rounds that refresh this value.
+                        its configured gas/operations threshold. Not refreshed
+                        while trading is paused — the agent skips the transaction
+                        rounds that normally refresh this value. Check funding
+                        only if checkpoint settlement fails after the checkpoint
+                        is due.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 <p className="text-sm">
-                  {hc.agent_health.has_required_funds === false ? (
-                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
-                      {hc.agent_health.is_staking_kpi_met === true ? "No · Stale" : "No"}
-                    </Badge>
-                  ) : hc.agent_health.is_staking_kpi_met === true ? (
-                    <Badge variant="outline" className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20" title="Not refreshed while trading is paused">Stale</Badge>
+                  {hc.agent_health.is_staking_kpi_met === true ? (
+                    <Badge variant="outline" className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20">Not refreshed</Badge>
+                  ) : hc.agent_health.has_required_funds === false ? (
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">No</Badge>
                   ) : hc.agent_health.has_required_funds === true ? (
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Yes</Badge>
                   ) : "--"}
@@ -686,8 +685,18 @@ const PAUSE_ROUNDS = new Set([
   "call_checkpoint_round",
   "check_stop_trading_round",
 ]);
-const TRADING_PAUSED_CAPTION =
-  "Trading paused — staking KPI met. Resumes after next checkpoint.";
+function getTradingPausedCaption(currentRound: string) {
+  switch (currentRound) {
+    case "call_checkpoint_round":
+      return "Paused: KPI met. Checking whether the staking checkpoint is due.";
+    case "reset_and_pause_round":
+      return "Paused: KPI met. Waiting before the next checkpoint check.";
+    case "check_stop_trading_round":
+      return "Checking staking KPI before deciding whether to trade.";
+    default:
+      return "Paused: KPI met. No new trades or paid Mech calls until the due checkpoint settles.";
+  }
+}
 
 function RoundPipeline({
   rounds,
@@ -699,7 +708,7 @@ function RoundPipeline({
   const { activePhaseIndex, currentRound } = getPhaseStatus(rounds);
   const description =
     isTradingPaused && PAUSE_ROUNDS.has(currentRound)
-      ? TRADING_PAUSED_CAPTION
+      ? getTradingPausedCaption(currentRound)
       : ROUND_DESCRIPTIONS[currentRound] ??
         currentRound.replace(/_round$/, "").replaceAll("_", " ");
 
@@ -843,7 +852,7 @@ function getRoundDescription(
   roundsInfo?: Record<string, { name?: string; description?: string }>,
   isTradingPaused = false,
 ): string {
-  if (isTradingPaused && PAUSE_ROUNDS.has(round)) return TRADING_PAUSED_CAPTION;
+  if (isTradingPaused && PAUSE_ROUNDS.has(round)) return getTradingPausedCaption(round);
   if (roundsInfo?.[round]?.description) return roundsInfo[round].description!;
   if (ROUND_DESCRIPTIONS[round]) return ROUND_DESCRIPTIONS[round];
   return round.replace(/_round$/, "").replaceAll("_", " ");
