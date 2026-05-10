@@ -508,7 +508,7 @@ const PEARL_TEMPLATE_URLS: Record<string, string> = {
 
 // Services running a custom fork — Pearl's "Update to vX" would clobber our code.
 // Remove an entry to re-enable the upstream update check for that repo.
-const LOCKED_REPOS: ReadonlySet<string> = new Set(["trader"]);
+const LOCKED_REPOS: ReadonlySet<string> = new Set();
 
 // GitHub owner for the active fork, used to link out from CustomAgentCard.
 // Override per-deployment if you're running someone else's fork.
